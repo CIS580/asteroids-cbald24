@@ -7,11 +7,12 @@ module.exports = exports = Asteroid;
 
 var rInt = getRandomInt(1, 12);
 
-function Asteroid(position, size, color, canvas, velocity)
+function Asteroid(position, size, color, canvas, id, velocity)
 {
     switch(size)
     {
         case 1:
+            this.id = id;
             this.worldWidth = canvas.width;
             this.worldHeight = canvas.height;
             this.mass = 4;
@@ -20,17 +21,18 @@ function Asteroid(position, size, color, canvas, velocity)
        	        y: position.y
             };
             this.velocity = {
-                x: 4,
-                y: 0
+                x: velocity.x,
+                y: velocity.y
             }
             this.angle = 0;
             this.size = 64;  
-            this.radius  = 64;
+            this.radius  = 32;
             this.spritesheet = new Image();
             this.spritesheet.src = 'assets/l'+rInt+'.png';
             this.color = determineColor();
             break;
         case 2:
+            this.id = id;
             this.worldWidth = canvas.width;
             this.worldHeight = canvas.height;
             this.mass = 2;
@@ -39,16 +41,18 @@ function Asteroid(position, size, color, canvas, velocity)
                 y: position.y
             };
             this.velocity = {
-            x: 2,
-            y: 2
+                x: velocity.x,
+                y: velocity.y
             }
             this.angle = 0;
             this.size =32;  
-            this.radius  = 64;
+            this.radius  = 16;
             this.spritesheet = new Image();
             this.spritesheet.src = 'assets/m'+findMedAstImg(color)+'.png';
+            this.color = color;
             break;
         case 3:
+            this.id = id;
             this.worldWidth = canvas.width;
             this.worldHeight = canvas.height;
             this.mass = 1;
@@ -57,16 +61,22 @@ function Asteroid(position, size, color, canvas, velocity)
                 y: position.y
             };
             this.velocity = {
-                x: 1,
-                y: 0
+                x: velocity.x,
+                y: velocity.y
             }
             this.size = 16;  
             this.angle = 0;
-            this.radius  = 64;
+            this.radius  = 8;
             this.spritesheet = new Image();
+            this.color = color;
             this.spritesheet.src = 'assets/s'+findSmallAstImg(color)+'.png';
             break;
     }
+    this.center = {
+        x: position.x+this.radius,
+        y: position.y+this.radius
+    };
+
 }
 
 /**
@@ -129,7 +139,7 @@ Asteroid.prototype.update = function(time)
  */
 Asteroid.prototype.render = function(ctx)
 {
-    ctx.drawImage(this.spritesheet, 0, 0, this.size, this.size, this.position.x, this.position.y, this.size, this.size);
+    ctx.drawImage(this.spritesheet, 0, 0, this.size, this.size, this.position.x - this.radius, this.position.y - this.radius, this.size, this.size);
 }
 
 

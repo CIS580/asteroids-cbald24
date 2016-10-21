@@ -1,7 +1,7 @@
 "use strict";
 
-const MS_PER_FRAME = 1000/8;
-
+const laserCD = 1500;
+const Laser = require('./laser.js');
 /**
  * @module exports the Player class
  */
@@ -26,13 +26,26 @@ function Player(position, canvas) {
   }
   this.angle = 0;
   this.radius  = 64;
+  this.laserTimer = 0;
   this.thrusting = false;
   this.steerLeft = false;
   this.steerRight = false;
-
+  this.firedLaser = false;
+  this.onCD = false;
   var self = this;
   window.onkeydown = function(event) {
     switch(event.key) {
+      case ' ':
+        if(!self.onCD)
+        {
+          self.firedLaser= true;
+          self.laserTimer = 0;
+          self.onCD = true;
+        }
+        else{
+          self.firedLaser = false;
+        }         
+        break;
       case 'ArrowUp': // up
       case 'w':
         self.thrusting = true;
@@ -45,11 +58,15 @@ function Player(position, canvas) {
       case 'd':
         self.steerRight = true;
         break;
+      
     }
   }
 
   window.onkeyup = function(event) {
     switch(event.key) {
+      case ' ':
+        self.firedLaser = false;
+        break;
       case 'ArrowUp': // up
       case 'w':
         self.thrusting = false;
@@ -62,6 +79,7 @@ function Player(position, canvas) {
       case 'd':
         self.steerRight = false;
         break;
+      
     }
   }
 }
@@ -103,7 +121,16 @@ Player.prototype.update = function(time) {
 	  else if(this.velocity.y >= 5.5)
 	  {
 	  	this.velocity.y = 5.5;
-  	}
+    }  
+  }
+  if(this.onCD)
+  {
+    this.laserTimer += time;
+    if(this.laserTimer >= laserCD)
+    {
+      this.onCD = false;
+      this.laserTimer = 0;
+    }
   }
   // Apply velocity
   this.position.x += this.velocity.x;
@@ -113,6 +140,7 @@ Player.prototype.update = function(time) {
   if(this.position.x > this.worldWidth) this.position.x -= this.worldWidth;
   if(this.position.y < 0) this.position.y += this.worldHeight;
   if(this.position.y > this.worldHeight) this.position.y -= this.worldHeight;
+  
 }
 
 /**
@@ -146,4 +174,6 @@ Player.prototype.render = function(time, ctx) {
     ctx.stroke();
   }
   ctx.restore();
+  
+  
 }

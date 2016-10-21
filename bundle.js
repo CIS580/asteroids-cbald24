@@ -5,7 +5,8 @@
 const Game = require('./game.js');
 const Player = require('./player.js');
 const Asteroid = require('./asteroid.js');
-
+const Laser = require('./laser.js');
+const Vector = require('./vector');
 /* Global variables */
 var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
@@ -13,10 +14,21 @@ var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas);
 var score = 0;
 var lives = 3;
 var level = 1;
-var astroid1 = new Asteroid({x: 70, y: 70}, 1, 0, canvas);
-var astroid2 = new Asteroid({x: 200, y: 200}, 2, 2, canvas);
-var astroid3 = new Asteroid({x: 200, y: 70}, 3, 1, canvas);
-var astroid4 = new Asteroid({x: 70, y: 200}, 3, 3, canvas);
+var asteroids = [];
+var lasersFired = [];
+var curId = 4;
+var asteroid = new Asteroid({x: 600, y: 400}, 1, 1, canvas, 3, {x: -2, y: 1});//new Asteroid({x: 70, y: 70}, 1, 0, canvas, 1, {x: 4, y: 2});
+asteroids.push(asteroid);
+asteroid = new Asteroid({x: 300, y: 200}, 2, 2, canvas, 2, {x: 3, y: 2});
+asteroids.push(asteroid);
+var asteroid = new Asteroid({x: 200, y: 140}, 3, 1, canvas, 3, {x: 0, y: 3});
+asteroids.push(asteroid);
+asteroid = new Asteroid({x: 200, y: 400}, 1, 2, canvas, 4, {x: 0, y: -2});
+asteroids.push(asteroid);
+var potentiallyColliding = [];
+var collisions = [];
+var collided = [];
+var laser = new Laser({x: 400, y: 300}, canvas, 45);
 /**
  * @function masterLoop
  * Advances the game in sync with the refresh rate of the screen
@@ -39,11 +51,22 @@ masterLoop(performance.now());
  */
 function update(elapsedTime) {
   player.update(elapsedTime);
-  astroid1.update(elapsedTime);
-  astroid2.update(elapsedTime);
-  astroid3.update(elapsedTime);
-  astroid4.update(elapsedTime);
-  // TODO: Update the game objects
+  updateAsteroids();
+  for(var i = 0; i < asteroids.length; i++)
+  {
+    asteroidCollisionCheck(asteroids[i]);
+    isShot(asteroids[i]);
+    handleCollisions();
+  }
+  laser.update();
+  if(player.firedLaser)
+  {
+    lasersFired.push(new Laser(player.position, canvas, player.angle));
+  }
+  for(var j =0; j < lasersFired.length; j++)
+  {
+    lasersFired[j].update();
+  }
 }
 
 /**
@@ -58,10 +81,14 @@ function render(elapsedTime, ctx) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   player.render(elapsedTime, ctx);
   renderText(ctx);
-  astroid1.render(ctx);
-  astroid2.render(ctx);
-  astroid3.render(ctx);
-  astroid4.render(ctx);
+  for(var i = 0; i < asteroids.length; i++)
+  {
+    asteroids[i].render(ctx);
+  }
+  for(var j =0; j < lasersFired.length; j++)
+  {
+    lasersFired[j].render(ctx); 
+  }
 }
 
 /**
@@ -76,7 +103,145 @@ function renderText(ctx) {
   ctx.fillText("Level: " +level, 2, 9);
   ctx.fillText("Lives: " +lives, 2, 29)
 }
-},{"./asteroid.js":2,"./game.js":3,"./player.js":4}],2:[function(require,module,exports){
+
+function asteroidCollisionCheck(asteroid)
+{
+  collisions = [];
+  findNearby(asteroid);
+  for(var i = 0; i <potentiallyColliding.length; i++)
+  {
+    var cur = potentiallyColliding[i];
+    var dist = Math.sqrt(Math.pow((cur.position.x) - (asteroid.position.x), 2) 
+      + Math.pow((cur.position.y) - (asteroid.position.y), 2));
+    if(dist < asteroid.radius + cur.radius)
+    {
+      var pair = {a: cur, b: asteroid};
+      collisions.push(pair);    
+    } 
+  } 
+}
+
+function findNearby(ast)
+{
+  potentiallyColliding = [];
+  for(var i = 0; i<asteroids.length; i++)
+  {
+    if(asteroids[i].position.x - ast.position.x < 64 || ast.position.x - asteroids[i].position.x < 64)
+    {
+      if(asteroids[i].position.y - ast.position.y < 64|| ast.position.y - asteroids[i].position.y < 64)
+      {
+        if(ast != asteroids[i])
+        {
+          potentiallyColliding.push(asteroids[i]);
+        }
+      }
+    }
+  }
+}
+
+function handleCollisions()
+{
+  for(var i = 0; i<collisions.length; i++)
+  {    
+    var collisionNormal = {
+			x: (collisions[i].a.position.x) - (collisions[i].b.position.x),
+			y: (collisions[i].a.position.y) - (collisions[i].b.position.y)
+		};
+  
+    var overlapA = collisions[i].a.radius + collisions[i].b.radius + 2 - Vector.magnitude(collisionNormal);    
+		collisionNormal = Vector.normalize(collisionNormal);
+
+		collisions[i].a.position.x += collisionNormal.x * overlapA / 2;
+		collisions[i].a.position.y += collisionNormal.y * overlapA / 2;
+		collisions[i].b.position.x -= collisionNormal.x * overlapA / 2;
+		collisions[i].b.position.y -= collisionNormal.y * overlapA / 2;
+
+		var angle = Math.atan2(collisionNormal.y, collisionNormal.x);
+		var a = Vector.rotate(collisions[i].a.velocity, angle);
+		var b = Vector.rotate(collisions[i].b.velocity, angle);
+
+		var s = a.x;
+		a.x = b.x;
+		b.x = s;
+		a = Vector.rotate(a, -angle);
+		b = Vector.rotate(b, -angle);
+		collisions[i].a.velocity.x = a.x;
+		collisions[i].a.velocity.y = a.y;
+		collisions[i].b.velocity.x = b.x;
+		collisions[i].b.velocity.y = b.y;   
+  }
+}
+
+function updateAsteroids()
+{
+  for(var i = 0; i < asteroids.length; i++)
+  {
+    asteroids[i].update();
+  }
+}
+
+function isShot(asteroid)
+{
+  for (var i = 0; i < lasersFired.length; i++)
+  {
+    var cur = lasersFired[i];
+    var d1 = Math.sqrt( Math.pow(((cur.position.x - 10*(cur.velocity.x))
+       - asteroid.position.x), 2) + Math.pow(((cur.position.y + 10*(asteroid.velocity.y))
+       - asteroid.position.y), 2));
+    var d2 = Math.sqrt( Math.pow(((cur.position.x - asteroid.position.x), 2)) 
+      + Math.pow((cur.position.y + asteroid.position.y), 2));
+    if (d1 < asteroid.radius+5 || d2 < asteroid.radius+5)
+    {
+      score++;
+      asteroidShot(asteroid);
+      removeItem(lasersFired, cur);
+    }
+  }
+}
+
+function removeItem(array, item)
+{
+  var index;
+  for (var i = 0; i < array.length; i++)
+  {
+    if (array[i] == item) 
+    {
+      index = i;
+    }
+  }
+  var temp = array[0];
+  array[0] = array[index];
+  array[index] = temp;
+  array.shift();
+}
+
+function asteroidShot(asteroid)
+{
+  switch(asteroid.size)
+  {
+    case 64:
+      asteroids.push(new Asteroid ({x: asteroid.position.x + asteroid.velocity.x, y: asteroid.position.y + asteroid.velocity.y}, 2, 
+        asteroid.color, canvas, curId++, {x: asteroid.velocity.x, y: asteroid.velocity.y}));
+      removeItem(asteroids, asteroid);
+      asteroids.push(new Asteroid ({x: asteroid.position.x + asteroid.velocity.x, y: asteroid.position.y}, 3, 
+        asteroid.color, canvas, curId++, {x: asteroid.velocity.x, y: asteroid.velocity.y + .25}));
+      asteroids.push(new Asteroid ({x: asteroid.position.x, y: asteroid.position.y + asteroid.velocity.y}, 3, 
+        asteroid.color, canvas, curId++, {x: asteroid.velocity.x, y: asteroid.velocity.y + -.25}));
+      break;
+  }
+}
+
+function playerHit(asteroid)
+{
+  var distance = Math.sqrt( Math.pow((player.position.x - asteroid.position.x), 2) + Math.pow((player.position.y - asteroid.position.y), 2));
+
+  
+  if (distance2 < (asteroid.radius + 7))
+  {
+    lives--;
+  }
+}
+},{"./asteroid.js":2,"./game.js":3,"./laser.js":4,"./player.js":5,"./vector":6}],2:[function(require,module,exports){
 "use strict";
 
 /**
@@ -86,63 +251,76 @@ module.exports = exports = Asteroid;
 
 var rInt = getRandomInt(1, 12);
 
-function Asteroid(position, size, color, canvas, velocity)
+function Asteroid(position, size, color, canvas, id, velocity)
 {
     switch(size)
     {
         case 1:
+            this.id = id;
             this.worldWidth = canvas.width;
             this.worldHeight = canvas.height;
+            this.mass = 4;
             this.position = {
                 x: position.x,
        	        y: position.y
             };
             this.velocity = {
-                x: 4,
-                y: 0
+                x: velocity.x,
+                y: velocity.y
             }
             this.angle = 0;
             this.size = 64;  
-            this.radius  = 64;
+            this.radius  = 32;
             this.spritesheet = new Image();
             this.spritesheet.src = 'assets/l'+rInt+'.png';
             this.color = determineColor();
             break;
         case 2:
+            this.id = id;
             this.worldWidth = canvas.width;
             this.worldHeight = canvas.height;
+            this.mass = 2;
             this.position = {
                 x: position.x,
                 y: position.y
             };
             this.velocity = {
-            x: 2,
-            y: 2
+                x: velocity.x,
+                y: velocity.y
             }
             this.angle = 0;
             this.size =32;  
-            this.radius  = 64;
+            this.radius  = 16;
             this.spritesheet = new Image();
             this.spritesheet.src = 'assets/m'+findMedAstImg(color)+'.png';
+            this.color = color;
             break;
         case 3:
+            this.id = id;
             this.worldWidth = canvas.width;
             this.worldHeight = canvas.height;
+            this.mass = 1;
             this.position = {
                 x: position.x,
                 y: position.y
             };
             this.velocity = {
-                x: 1,
-                y: 0
+                x: velocity.x,
+                y: velocity.y
             }
             this.size = 16;  
             this.angle = 0;
-            this.radius  = 64;
+            this.radius  = 8;
             this.spritesheet = new Image();
+            this.color = color;
             this.spritesheet.src = 'assets/s'+findSmallAstImg(color)+'.png';
             break;
     }
+    this.center = {
+        x: position.x+this.radius,
+        y: position.y+this.radius
+    };
+
 }
 
 /**
@@ -205,7 +383,7 @@ Asteroid.prototype.update = function(time)
  */
 Asteroid.prototype.render = function(ctx)
 {
-    ctx.drawImage(this.spritesheet, 0, 0, this.size, this.size, this.position.x, this.position.y, this.size, this.size);
+    ctx.drawImage(this.spritesheet, 0, 0, this.size, this.size, this.position.x - this.radius, this.position.y - this.radius, this.size, this.size);
 }
 
 
@@ -291,8 +469,51 @@ Game.prototype.loop = function(newTime) {
 },{}],4:[function(require,module,exports){
 "use strict";
 
-const MS_PER_FRAME = 1000/8;
+/**
+ * @module exports the Laser class
+ */
+module.exports = exports = Laser;
 
+
+function Laser(position, canvas, angle)
+{
+    this.worldWidth = canvas.width;
+    this.worldHeight = canvas.height;
+    this.position = {
+        x: position.x,
+        y: position.y
+    };
+    this.velocity = {
+        x: -(Math.sin(angle)),
+        y: -Math.cos(angle)
+    };
+    this.angle = -angle;
+    this.radius  = 64;
+    this.sprite = new Image();
+    this.sprite.src = 'assets/laser.png';
+}
+
+Laser.prototype.update = function()
+{
+    this.position.x += this.velocity.x;
+    this.position.y += this.velocity.y;
+}
+
+Laser.prototype.render = function(ctx)
+{
+    ctx.strokeStyle = "#FF4500";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(this.position.x, this.position.y);
+    ctx.lineTo(this.position.x + 10*(-this.velocity.x), this.position.y - 10*(this.velocity.y));
+    ctx.stroke();
+    ctx.lineWidth = 1;
+}
+},{}],5:[function(require,module,exports){
+"use strict";
+
+const laserCD = 1500;
+const Laser = require('./laser.js');
 /**
  * @module exports the Player class
  */
@@ -317,13 +538,26 @@ function Player(position, canvas) {
   }
   this.angle = 0;
   this.radius  = 64;
+  this.laserTimer = 0;
   this.thrusting = false;
   this.steerLeft = false;
   this.steerRight = false;
-
+  this.firedLaser = false;
+  this.onCD = false;
   var self = this;
   window.onkeydown = function(event) {
     switch(event.key) {
+      case ' ':
+        if(!self.onCD)
+        {
+          self.firedLaser= true;
+          self.laserTimer = 0;
+          self.onCD = true;
+        }
+        else{
+          self.firedLaser = false;
+        }         
+        break;
       case 'ArrowUp': // up
       case 'w':
         self.thrusting = true;
@@ -336,11 +570,15 @@ function Player(position, canvas) {
       case 'd':
         self.steerRight = true;
         break;
+      
     }
   }
 
   window.onkeyup = function(event) {
     switch(event.key) {
+      case ' ':
+        self.firedLaser = false;
+        break;
       case 'ArrowUp': // up
       case 'w':
         self.thrusting = false;
@@ -353,6 +591,7 @@ function Player(position, canvas) {
       case 'd':
         self.steerRight = false;
         break;
+      
     }
   }
 }
@@ -394,7 +633,16 @@ Player.prototype.update = function(time) {
 	  else if(this.velocity.y >= 5.5)
 	  {
 	  	this.velocity.y = 5.5;
-  	}
+    }  
+  }
+  if(this.onCD)
+  {
+    this.laserTimer += time;
+    if(this.laserTimer >= laserCD)
+    {
+      this.onCD = false;
+      this.laserTimer = 0;
+    }
   }
   // Apply velocity
   this.position.x += this.velocity.x;
@@ -404,6 +652,7 @@ Player.prototype.update = function(time) {
   if(this.position.x > this.worldWidth) this.position.x -= this.worldWidth;
   if(this.position.y < 0) this.position.y += this.worldHeight;
   if(this.position.y > this.worldHeight) this.position.y -= this.worldHeight;
+  
 }
 
 /**
@@ -437,6 +686,65 @@ Player.prototype.render = function(time, ctx) {
     ctx.stroke();
   }
   ctx.restore();
+  
+  
 }
 
+},{"./laser.js":4}],6:[function(require,module,exports){
+/**
+ * @module Vector
+ * A library of vector functions.
+ */
+module.exports = exports = {
+  rotate: rotate,
+  dotProduct: dotProduct,
+  magnitude: magnitude,
+  normalize: normalize
+}
+
+/**
+ * @function rotate
+ * Rotates a vector about the Z-axis
+ * @param {Vector} a - the vector to rotate
+ * @param {float} angle - the angle to roatate by (in radians)
+ * @returns a new vector representing the rotated original
+ */
+function rotate(a, angle) {
+  return {
+    x: a.x * Math.cos(angle) - a.y * Math.sin(angle),
+    y: a.x * Math.sin(angle) + a.y * Math.cos(angle)
+  }
+}
+
+/**
+ * @function dotProduct
+ * Computes the dot product of two vectors
+ * @param {Vector} a the first vector
+ * @param {Vector} b the second vector
+ * @return the computed dot product
+ */
+function dotProduct(a, b) {
+  return a.x * b.x + a.y * b.y
+}
+
+/**
+ * @function magnitude
+ * Computes the magnitude of a vector
+ * @param {Vector} a the vector
+ * @returns the calculated magnitude
+ */
+function magnitude(a) {
+  return Math.sqrt(dotProduct(a, a));
+}
+
+/**
+ * @function normalize
+ * Normalizes the vector
+ * @param {Vector} a the vector to normalize
+ * @returns a new vector that is the normalized original
+ */
+function normalize(a) {
+  var mag = magnitude(a);
+  return {x: a.x / mag, y: a.y / mag};
+}
 },{}]},{},[1]);
