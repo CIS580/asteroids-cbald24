@@ -232,9 +232,8 @@ function asteroidShot(asteroid)
 
 function playerHit(asteroid)
 {
-  var distance = Math.sqrt( Math.pow((player.position.x - asteroid.position.x), 2) + Math.pow((player.position.y - asteroid.position.y), 2));
-
-  
+  var distance = Math.sqrt( Math.pow((player.position.x - asteroid.position.x), 2)
+     + Math.pow((player.position.y - asteroid.position.y), 2));
   if (distance2 < (asteroid.radius + 7))
   {
     lives--;
