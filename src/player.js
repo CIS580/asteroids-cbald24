@@ -1,7 +1,9 @@
 "use strict";
 
-const laserCD = 1500;
+const laserCD = 1000;
 const Laser = require('./laser.js');
+const iTime = 2000;
+var lcd = false;
 /**
  * @module exports the Player class
  */
@@ -15,7 +17,7 @@ module.exports = exports = Player;
 function Player(position, canvas) {
   this.worldWidth = canvas.width;
   this.worldHeight = canvas.height;
-  this.state = "idle";
+  this.state = "inv";
   this.position = {
     x: position.x,
     y: position.y
@@ -25,26 +27,24 @@ function Player(position, canvas) {
     y: 0
   }
   this.angle = 0;
+  this.iTimer = 2000;
   this.radius  = 64;
   this.laserTimer = 0;
   this.thrusting = false;
   this.steerLeft = false;
   this.steerRight = false;
   this.firedLaser = false;
-  this.onCD = false;
   var self = this;
   window.onkeydown = function(event) {
     switch(event.key) {
-      case ' ':
-        if(!self.onCD)
+      case 'f':
+        if(!lcd) 
         {
-          self.firedLaser= true;
-          self.laserTimer = 0;
-          self.onCD = true;
-        }
-        else{
-          self.firedLaser = false;
-        }         
+          self.state = "fire";
+          lcd = true;
+          self.laserTimer = laserCD;
+          self.iTimer = 0;
+        }       
         break;
       case 'ArrowUp': // up
       case 'w':
@@ -58,13 +58,18 @@ function Player(position, canvas) {
       case 'd':
         self.steerRight = true;
         break;
-      
+      case 't':
+        self.position = {x: getRandomInt(10, self.worldWidth), y: getRandomInt(10, self.worldHeight)};
+        self.velocity = { x: 0, y: 0};
+        self.iTimer = iTime;
+        self.state = "inv";
+        break;
     }
   }
 
   window.onkeyup = function(event) {
     switch(event.key) {
-      case ' ':
+      case 'f':
         self.firedLaser = false;
         break;
       case 'ArrowUp': // up
@@ -79,7 +84,8 @@ function Player(position, canvas) {
       case 'd':
         self.steerRight = false;
         break;
-      
+      case 't':
+        break;
     }
   }
 }
@@ -91,6 +97,14 @@ function Player(position, canvas) {
  * {DOMHighResTimeStamp} time the elapsed time since the last frame
  */
 Player.prototype.update = function(time) {
+  if(this.state == "inv")
+  {
+    this.iTimer -= time;
+    if (this.iTimer <= 0)
+    {
+      this.state = "idle";
+    }
+  }
   // Apply angular velocity
   if(this.steerLeft) {
     this.angle += time * 0.005;
@@ -123,13 +137,12 @@ Player.prototype.update = function(time) {
 	  	this.velocity.y = 5.5;
     }  
   }
-  if(this.onCD)
+  if(lcd)
   {
-    this.laserTimer += time;
-    if(this.laserTimer >= laserCD)
+    this.laserTimer -= time;
+    if(this.laserTimer <= 0)
     {
-      this.onCD = false;
-      this.laserTimer = 0;
+      lcd = false;
     }
   }
   // Apply velocity
@@ -150,7 +163,6 @@ Player.prototype.update = function(time) {
  */
 Player.prototype.render = function(time, ctx) {
   ctx.save();
-
   // Draw player's ship
   ctx.translate(this.position.x, this.position.y);
   ctx.rotate(-this.angle);
@@ -160,7 +172,13 @@ Player.prototype.render = function(time, ctx) {
   ctx.lineTo(0, 0);
   ctx.lineTo(10, 10);
   ctx.closePath();
-  ctx.strokeStyle = 'white';
+  if(this.state == "inv")
+  {
+    ctx.strokeStyle = 'red';
+  }
+  else{
+    ctx.strokeStyle = 'white';
+  }
   ctx.stroke();
 
   // Draw engine thrust
@@ -174,6 +192,8 @@ Player.prototype.render = function(time, ctx) {
     ctx.stroke();
   }
   ctx.restore();
-  
-  
+}
+
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
 }

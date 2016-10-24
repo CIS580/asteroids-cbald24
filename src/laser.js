@@ -26,8 +26,8 @@ function Laser(position, canvas, angle)
 
 Laser.prototype.update = function()
 {
-    this.position.x += this.velocity.x;
-    this.position.y += this.velocity.y;
+    this.position.x += this.velocity.x * 3;
+    this.position.y += this.velocity.y * 3;
 }
 
 Laser.prototype.render = function(ctx)
